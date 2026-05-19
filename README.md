@@ -77,6 +77,13 @@ ProjectSettings/
 README.md
 ```
 
+# 🎮 Play the Game
+
+📱 Android Download:  
+https://play.google.com/store/apps/details?id=com.mskstudios.dodger
+
+Experience the fast-paced arcade gameplay directly on Android devices through the official Google Play Store release.
+
 ---
 
 # ✅ Repository Checklist
