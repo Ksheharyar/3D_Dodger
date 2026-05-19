@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Simple 3D Dodger Game</title>
+    <!-- Add the Tone.js library for generating music -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #000;
+            font-family: 'Courier New', Courier, monospace; color: #fff;
+        }
+
+        /* --- New Animated Background --- */
+        #background-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(to right, rgba(0, 255, 255, 0.2) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: moveGrid 10s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes moveGrid {
+            from { background-position: 0 0; }
+            to { background-position: 0 200px; }
+        }
+
+        .menu-screen {
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+            background-color: rgba(26, 26, 26, 0.8); /* Semi-transparent */
+            transition: opacity 0.5s;
+        }
+        .menu-screen h1 { font-size: 3em; margin-bottom: 20px; color: #00ffff; text-shadow: 0 0 10px #00ffff; }
+        .menu-button {
+            background-color: #007bff; color: white; border: none;
+            padding: 15px 40px; margin: 10px; font-size: 1.5em;
+            border-radius: 8px; cursor: pointer; width: 250px; text-align: center;
+            border-bottom: 4px solid #0056b3;
+        }
+        .menu-button:active { transform: translateY(2px); border-bottom-width: 2px; }
+        .hidden { display: none; }
+
+        /* --- New Main Menu Icon --- */
+        #menu-icon-container {
+            width: 80px;
+            height: 80px;
+            perspective: 1000px;
+            margin-bottom: 30px;
+        }
+        #menu-icon-cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: spin 15s infinite linear;
+        }
+        .menu-icon-face {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border: 2px solid #00ffff;
+            box-shadow: inset 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+        .menu-icon-front  { transform: rotateY(0deg) translateZ(40px); }
+        .menu-icon-back   { transform: rotateY(180deg) translateZ(40px); }
+        .menu-icon-right  { transform: rotateY(90deg) translateZ(40px); }
+        .menu-icon-left   { transform: rotateY(-90deg) translateZ(40px); }
+        .menu-icon-top    { transform: rotateX(90deg) translateZ(40px); }
+        .menu-icon-bottom { transform: rotateX(-90deg) translateZ(40px); }
+        @keyframes spin {
+            from { transform: rotateX(0) rotateY(0); }
+            to { transform: rotateX(360deg) rotateY(360deg); }
+        }
+
+        #game-container {
+            width: 100%; height: 100%; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+        canvas { width: 100%; height: 85%; background-color: transparent; }
+        #ui-container {
+            width: 100%; height: 15%; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+        }
+        #score { font-size: 2em; }
+        #instructions { font-size: 1em; color: #aaa; }
+        #game-over-modal {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); background-color: rgba(20, 20, 20, 0.9);
+            padding: 20px 40px; border-radius: 15px; border: 2px solid #555;
+            text-align: center; box-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
+        }
+        #game-over-modal h2 { margin-top: 0; font-size: 2.5em; color: #ff4444; }
+
+        /* --- New On-Screen Controls --- */
+        #controls-container {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            pointer-events: none; /* Let touches pass through the container */
+        }
+        .control-button {
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto; /* Buttons are touchable */
+            user-select: none; /* Prevent text selection */
+        }
+        .control-button:active {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+        .control-button svg {
+            width: 50px;
+            height: 50px;
+            fill: #fff;
+        }
+    </style>
+</head>
+<body>
+
+<!-- New Background Element -->
+<div id="background-grid"></div>
+
+<!-- Main Menu -->
+<div id="main-menu" class="menu-screen">
+    <!-- New Menu Icon -->
+    <div id="menu-icon-container">
+        <div id="menu-icon-cube">
+            <div class="menu-icon-face menu-icon-front"></div>
+            <div class="menu-icon-face menu-icon-back"></div>
+            <div class="menu-icon-face menu-icon-right"></div>
+            <div class="menu-icon-face menu-icon-left"></div>
+            <div class="menu-icon-face menu-icon-top"></div>
+            <div class="menu-icon-face menu-icon-bottom"></div>
+        </div>
+    </div>
+    <h1>3D Dodger</h1>
+    <button id="play-button" class="menu-button">Play</button>
+    <button id="settings-button" class="menu-button">Settings</button>
+    <button id="quit-button" class="menu-button">Quit</button>
+</div>
+
+<!-- Settings Menu -->
+<div id="settings-menu" class="menu-screen hidden">
+    <h1>Settings</h1>
+    <p>Game settings will be here.</p>
+    <button id="mute-button" class="menu-button">Mute</button>
+    <button id="back-button" class="menu-button" style="margin-top: 20px;">Back</button>
+</div>
+
+<!-- Game Content -->
+<div id="game-container" class="hidden">
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui-container">
+        <div id="score">Score: 0</div>
+        <div id="instructions">Dodge the red blocks!</div>
+    </div>
+    <!-- New On-Screen Controls -->
+    <div id="controls-container">
+        <div id="left-button" class="control-button">
+            <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        </div>
+        <div id="right-button" class="control-button">
+            <svg viewBox="0 0 24 24"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+        </div>
+    </div>
+</div>
+
+<!-- Game Over Modal -->
+<div id="game-over-modal">
+    <h2>Game Over</h2>
+    <p id="final-score"></p>
+    <button id="restart-button" class="menu-button">Play Again</button>
+    <button id="main-menu-button" class="menu-button">Main Menu</button>
+</div>
+
+<script>
+    // --- Menu and Screen Elements ---
+    const mainMenu = document.getElementById('main-menu');
+    const settingsMenu = document.getElementById('settings-menu');
+    const gameContainer = document.getElementById('game-container');
+    const controlsContainer = document.getElementById('controls-container');
+
+    // --- Buttons ---
+    const playButton = document.getElementById('play-button');
+    const settingsButton = document.getElementById('settings-button');
+    const quitButton = document.getElementById('quit-button');
+    const backButton = document.getElementById('back-button');
+    const restartButton = document.getElementById('restart-button');
+    const mainMenuButton = document.getElementById('main-menu-button');
+    const muteButton = document.getElementById('mute-button');
+    const leftButton = document.getElementById('left-button');
+    const rightButton = document.getElementById('right-button');
+
+    // --- Game Elements ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score');
+    const gameOverModal = document.getElementById('game-over-modal');
+    const finalScoreElement = document.getElementById('final-score');
+
+    let canvasWidth, canvasHeight;
+
+    function resizeCanvas() {
+        canvasWidth = canvas.clientWidth;
+        canvasHeight = canvas.clientHeight;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // --- Music Setup ---
+    let isMusicPlaying = false;
+    let isMuted = false;
+    const synth = new Tone.Synth({
+        oscillator: { type: 'fmsquare' },
+        envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.1 }
+    }).toDestination();
+    const melody = new Tone.Sequence((time, note) => {
+        synth.triggerAttackRelease(note, '8n', time);
+    }, ['C4', 'E4', 'G4', 'B4', 'C5', 'B4', 'G4', 'E4'], '8n');
+    Tone.Transport.bpm.value = 140;
+
+    // --- 3D Projection & Cube Class (Unchanged) ---
+    const fov = 250;
+    function project(x, y, z) {
+        const scale = fov / (fov + z);
+        return { x: x * scale + canvasWidth / 2, y: y * scale + canvasHeight / 2, scale: scale };
+    }
+    class Cube {
+        constructor(x, y, z, size, color) {
+            this.x = x; this.y = y; this.z = z; this.size = size; this.color = color;
+            this.vertices = [
+                {x: -1, y: -1, z: -1}, {x: 1, y: -1, z: -1}, {x: 1, y: 1, z: -1}, {x: -1, y: 1, z: -1},
+                {x: -1, y: -1, z: 1}, {x: 1, y: -1, z: 1}, {x: 1, y: 1, z: 1}, {x: -1, y: 1, z: 1}
+            ];
+            this.edges = [0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7];
+        }
+        draw() {
+            const projectedVertices = this.vertices.map(v => project(this.x + v.x * this.size, this.y + v.y * this.size, this.z + v.z * this.size));
+            ctx.strokeStyle = this.color; ctx.lineWidth = 2;
+            for (let i = 0; i < this.edges.length; i += 2) {
+                const p1 = projectedVertices[this.edges[i]]; const p2 = projectedVertices[this.edges[i + 1]];
+                ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+            }
+        }
+    }
+
+    // --- Game State & Controls ---
+    let player, obstacles, score, gameOver, obstacleSpawnTimer;
+    let baseGameSpeed, gameSpeed;
+    let baseSpawnInterval, obstacleSpawnInterval;
+    let moveDirection = 0;
+    let animationFrameId;
+
+    // --- Screen Navigation ---
+    function showScreen(screen) {
+        mainMenu.classList.add('hidden');
+        settingsMenu.classList.add('hidden');
+        gameContainer.classList.add('hidden');
+        controlsContainer.style.display = 'none'; // Hide controls by default
+        screen.classList.remove('hidden');
+    }
+
+    playButton.onclick = async () => {
+        if (Tone.context.state !== 'running') { await Tone.start(); }
+        if (!isMusicPlaying) {
+            Tone.Transport.start();
+            melody.start(0);
+            isMusicPlaying = true;
+        }
+        showScreen(gameContainer);
+        controlsContainer.style.display = 'flex'; // Show controls
+        startGame();
+    };
+    settingsButton.onclick = () => showScreen(settingsMenu);
+    backButton.onclick = () => showScreen(mainMenu);
+
+    mainMenuButton.onclick = () => {
+        if (isMusicPlaying) {
+            Tone.Transport.stop();
+            melody.stop();
+            isMusicPlaying = false;
+        }
+        gameOverModal.style.display = 'none';
+        showScreen(mainMenu);
+    };
+
+    muteButton.onclick = () => {
+        isMuted = !isMuted;
+        Tone.Destination.mute = isMuted;
+        muteButton.textContent = isMuted ? 'Unmute' : 'Mute';
+    };
+
+    quitButton.onclick = () => {
+        if (window.Android && typeof window.Android.quitApp === 'function') {
+            window.Android.quitApp();
+        }
+    };
+
+    restartButton.onclick = () => {
+        if (!isMusicPlaying) {
+            Tone.Transport.start();
+            melody.start(0);
+            isMusicPlaying = true;
+        }
+        gameOverModal.style.display = 'none';
+        startGame();
+    };
+
+    // --- Game Logic ---
+    function startGame() {
+        resizeCanvas();
+        player = new Cube(0, canvasHeight / 2 - 50, 0, 20, '#00ffff');
+        obstacles = [];
+        score = 0;
+        gameOver = false;
+        obstacleSpawnTimer = 0;
+
+        // --- RE-BALANCED DIFFICULTY VARIABLES ---
+        baseGameSpeed = 12; // A faster, but reasonable, initial speed
+        gameSpeed = baseGameSpeed;
+        baseSpawnInterval = 100; // Faster initial spawn of obstacles
+        obstacleSpawnInterval = baseSpawnInterval;
+
+        scoreElement.textContent = `Score: ${score}`;
+        gameOverModal.style.display = 'none';
+
+        if(animationFrameId) cancelAnimationFrame(animationFrameId);
+        gameLoop();
+    }
+
+    function update() {
+        if (gameOver) return;
+
+        // Player movement speed is fixed and does NOT change.
+        if (moveDirection !== 0) player.x += moveDirection * 5;
+
+        const p_proj = project(player.x, player.y, player.z);
+        const p_width = player.size * p_proj.scale * 2;
+        if (p_proj.x - p_width / 2 < 0) player.x += 5;
+        if (p_proj.x + p_width / 2 > canvasWidth) player.x -= 5;
+
+        obstacleSpawnTimer++;
+        if (obstacleSpawnTimer >= obstacleSpawnInterval) {
+            obstacleSpawnTimer = 0;
+            obstacles.push(new Cube((Math.random() - 0.5) * (canvasWidth * 1.5), player.y, 300, 25, '#ff4444'));
+        }
+
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            const obs = obstacles[i];
+            // Obstacle speed is the only thing affected by the gameSpeed variable.
+            obs.z -= gameSpeed;
+            if (Math.abs(player.z - obs.z) < player.size + obs.size && Math.abs(player.x - obs.x) < player.size + obs.size) {
+                gameOver = true;
+                if (isMusicPlaying) {
+                    Tone.Transport.stop();
+                    melody.stop();
+                    isMusicPlaying = false;
+                }
+                finalScoreElement.textContent = `Your Score: ${score}`;
+                gameOverModal.style.display = 'block';
+                return;
+            }
+            if (obs.z < -fov) {
+                obstacles.splice(i, 1);
+                score++;
+                scoreElement.textContent = `Score: ${score}`;
+
+                // --- RE-BALANCED DIFFICULTY SCALING ---
+                // Obstacle speed increases every 4 points.
+                gameSpeed = baseGameSpeed + Math.floor(score / 4) * 0.4;
+                // Obstacles spawn faster every 8 points.
+                obstacleSpawnInterval = Math.max(30, baseSpawnInterval - Math.floor(score / 8) * 5);
+            }
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        player.draw();
+        obstacles.sort((a, b) => b.z - a.z).forEach(obs => obs.draw());
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        if (!gameOver) {
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+    }
+
+    // --- Touch Controls ---
+    function handleTouch(e) {
+        e.preventDefault(); if (gameOver) return;
+        moveDirection = (e.touches[0].clientX < window.innerWidth / 2) ? -1 : 1;
+    }
+    function clearTouch(e) { e.preventDefault(); moveDirection = 0; }
+
+    // Listen for touches on the whole canvas (original method)
+    canvas.addEventListener('touchstart', handleTouch, { passive: false });
+    canvas.addEventListener('touchmove', handleTouch, { passive: false });
+    canvas.addEventListener('touchend', clearTouch, { passive: false });
+    canvas.addEventListener('touchcancel', clearTouch, { passive: false });
+
+    // Listen for touches on the new buttons
+    leftButton.addEventListener('touchstart', (e) => { e.preventDefault(); moveDirection = -1; });
+    leftButton.addEventListener('touchend', (e) => { e.preventDefault(); moveDirection = 0; });
+    rightButton.addEventListener('touchstart', (e) => { e.preventDefault(); moveDirection = 1; });
+    rightButton.addEventListener('touchend', (e) => { e.preventDefault(); moveDirection = 0; });
+
+</script>
+</body>
+</html>
