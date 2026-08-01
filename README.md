@@ -21,7 +21,7 @@ The game focuses on:
 # ✨ Features
 
 ## 🚗 Dodge Mechanics
-- Smooth player movement
+- Smooth player movement 
 - Responsive controls
 - Fast obstacle avoidance gameplay
 
